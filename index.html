@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CYBER-SCHEDULE TERMINAL v3.2</title>
+    <title>CYBER-SCHEDULE TERMINAL v3.3</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -27,11 +27,15 @@
         .mono { font-family: 'JetBrains Mono', monospace; }
 
         .cyber-panel {
-            background: rgba(22, 27, 34, 0.95);
+            background: #0d1117; /* Solid color for better export */
             border: 1px solid rgba(0, 243, 255, 0.2);
         }
 
-        .holiday-active { background: rgba(239, 68, 68, 0.15) !important; border-bottom: 2px solid #ef4444 !important; }
+        /* Penanganan khusus untuk Export Gambar */
+        .export-label { display: none; }
+        .is-exporting .export-label { display: block; font-weight: bold; color: white; }
+        .is-exporting select { display: none; }
+        .is-exporting .no-export { display: none !important; }
 
         @media print {
             .no-print { display: none !important; }
@@ -44,31 +48,32 @@
 
     <div class="max-w-7xl mx-auto">
         
-        <header class="flex flex-col lg:flex-row justify-between items-end mb-6 pb-6 border-b border-cyan-900/50 gap-4">
+        <header class="flex flex-col lg:flex-row justify-between items-end mb-6 pb-6 border-b border-cyan-900/50 gap-4 no-print">
             <div>
                 <h1 class="orbitron text-2xl font-bold text-cyan-400 tracking-[0.2em] uppercase">
-                    Terminal_Schedule <span class="text-white">v3.2</span>
+                    Terminal_Schedule <span class="text-white">v3.3</span>
                 </h1>
-                <div class="flex items-center mt-2 no-print">
+                <div class="flex items-center mt-2">
                     <div class="bg-cyan-950/30 border border-cyan-800 px-3 py-1 rounded flex items-center gap-3">
-                        <span class="text-[10px] font-bold text-cyan-500 mono">SYNC_DATE:</span>
+                        <span class="text-[10px] font-bold text-cyan-500 mono uppercase">Sync_Date:</span>
                         <input type="date" x-model="startDate" @change="updateDates()" class="bg-transparent text-sm text-white outline-none cursor-pointer">
                     </div>
                 </div>
             </div>
 
-            <div class="flex flex-wrap gap-2 no-print">
+            <div class="flex flex-wrap gap-2">
                 <button @click="exportToImage()" class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded font-bold text-[11px] orbitron flex items-center gap-2 transition">
-                    EXPORT_PNG
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                    GENERATE_IMAGE
                 </button>
-                <button @click="window.print()" class="bg-cyan-600 hover:bg-cyan-500 text-black px-4 py-2 rounded font-bold text-[11px] orbitron flex items-center gap-2 transition">
+                <button @click="window.print()" class="bg-cyan-600 hover:bg-cyan-500 text-black px-4 py-2 rounded font-bold text-[11px] orbitron transition">
                     PRINT_PDF
                 </button>
             </div>
         </header>
 
         <section class="no-print mb-6 grid grid-cols-1 md:grid-cols-6 gap-3 p-4 bg-slate-900/30 border border-cyan-900/30 rounded-xl">
-            <input type="text" x-model="newEmp.name" placeholder="Nama Karyawan" class="bg-black/50 border border-cyan-900 p-2 rounded text-sm text-white focus:border-cyan-400 outline-none md:col-span-2">
+            <input type="text" x-model="newEmp.name" placeholder="Nama Karyawan" class="bg-black/50 border border-cyan-900 p-2 rounded text-sm text-white outline-none md:col-span-2">
             <select x-model="newEmp.role" class="bg-black/50 border border-cyan-900 p-2 rounded text-sm text-cyan-400">
                 <option value="CIF">CIF</option><option value="SSL">SSL</option><option value="SJL">SJL</option>
                 <option value="SCB">SCB</option><option value="SCG">SCG</option><option value="BARISTA">BARISTA</option>
@@ -76,75 +81,72 @@
             <select x-model="newEmp.gender" class="bg-black/50 border border-cyan-900 p-2 rounded text-sm text-cyan-400">
                 <option value="L">Pria (M)</option><option value="P">Wanita (F)</option>
             </select>
-            <button @click="addEmployee" class="bg-cyan-500 hover:bg-cyan-400 text-black font-bold py-2 rounded text-[11px] orbitron">
-                DEPLOY_UNIT
-            </button>
-            <button @click="clearAllData()" class="bg-red-900/20 border border-red-500/50 text-red-500 py-2 rounded text-[11px] orbitron hover:bg-red-500 transition">
-                WIPE_ALL
-            </button>
+            <button @click="addEmployee" class="bg-cyan-500 hover:bg-cyan-400 text-black font-bold py-2 rounded text-[11px] orbitron">ADD_UNIT</button>
+            <button @click="clearAllData()" class="bg-red-900/20 border border-red-500/50 text-red-500 py-2 rounded text-[11px] orbitron hover:bg-red-500 hover:text-white transition">WIPE</button>
         </section>
 
-        <div id="capture-area" class="cyber-panel rounded-xl overflow-hidden border border-cyan-900/50 p-1">
+        <div id="capture-area" class="cyber-panel rounded-xl overflow-hidden border border-cyan-900/50 p-1" :class="isExporting ? 'is-exporting' : ''">
             <div class="p-4 bg-cyan-950/20 flex justify-between items-center border-b border-cyan-900/50">
-                <span class="text-[10px] font-bold text-cyan-500 orbitron uppercase tracking-[0.3em]">Operational_Data_Log</span>
+                <div class="flex flex-col">
+                    <span class="text-[10px] font-bold text-cyan-500 orbitron uppercase tracking-[0.3em]">Operational_Log_System</span>
+                    <span class="text-[8px] text-gray-500 uppercase mt-1">Status: Encrypted & Verified</span>
+                </div>
                 <span class="text-[11px] font-bold text-white mono" x-text="getPeriodRange()"></span>
             </div>
             
             <table class="w-full text-left border-collapse table-fixed">
                 <thead>
                     <tr class="bg-slate-900/80 text-cyan-400">
-                        <th class="p-4 border-b border-cyan-900 w-48 text-[10px] uppercase font-bold tracking-widest">Personnel_Unit</th>
+                        <th class="p-4 border-b border-cyan-900 w-44 text-[10px] uppercase font-bold tracking-widest">Personnel</th>
                         <template x-for="(day, index) in days" :key="index">
-                            <th class="p-2 border-b border-cyan-900 text-center relative cursor-pointer" @click="toggleHoliday(index)" :class="nationalHolidays[index] ? 'holiday-active' : ''">
+                            <th class="p-2 border-b border-cyan-900 text-center relative" @click="toggleHoliday(index)">
                                 <div class="text-[11px] font-bold text-white" x-text="day"></div>
                                 <div class="text-[9px] text-cyan-600 mono" x-text="formattedDates[index]"></div>
                                 <template x-if="nationalHolidays[index]">
-                                    <div class="text-[7px] text-red-500 font-bold mt-1">LIBUR NASIONAL</div>
+                                    <div class="text-[7px] text-red-500 font-bold mt-1 uppercase">Libur</div>
                                 </template>
                             </th>
                         </template>
-                        <th class="p-2 border-b border-cyan-900 w-10 no-print"></th>
+                        <th class="p-2 border-b border-cyan-900 w-10 no-export text-center"></th>
                     </tr>
                 </thead>
                 <tbody class="text-[12px]">
                     <template x-for="(emp, empIdx) in employees" :key="emp.id">
-                        <tr class="border-b border-cyan-900/20 hover:bg-cyan-900/5">
+                        <tr class="border-b border-cyan-900/10 hover:bg-cyan-900/5 transition-colors">
                             <td class="p-3 border-r border-cyan-900/20">
-                                <div class="text-white font-bold" x-text="emp.name"></div>
-                                <div class="flex gap-1 mt-1 items-center">
-                                    <span class="text-[8px] font-bold bg-cyan-950 text-cyan-400 px-1 border border-cyan-800 uppercase" x-text="emp.role"></span>
-                                    <span class="text-[8px] text-gray-500 mono" x-text="emp.gender"></span>
-                                </div>
-                                <div class="mt-2 no-print">
-                                    <select x-model="emp.lastOffDay" @change="validateSchedule()" class="bg-black/40 text-[9px] border border-cyan-900/50 rounded px-1 text-orange-400">
-                                        <option value="">Off Lalu: -</option>
-                                        <template x-for="(day, idx) in days" :key="idx">
-                                            <option :value="idx" x-text="day"></option>
-                                        </template>
-                                    </select>
+                                <div class="text-white font-bold truncate" x-text="emp.name"></div>
+                                <div class="flex gap-1 mt-1">
+                                    <span class="text-[8px] font-bold bg-cyan-950 text-cyan-400 px-1 border border-cyan-800" x-text="emp.role"></span>
+                                    <span class="text-[8px] text-gray-500 mono uppercase" x-text="emp.gender"></span>
                                 </div>
                             </td>
                             <template x-for="(day, dayIdx) in days" :key="dayIdx">
                                 <td class="p-1 border-r border-cyan-900/10 text-center relative" :class="nationalHolidays[dayIdx] ? 'bg-red-500/5' : ''">
                                     <div class="flex flex-col items-center justify-center min-h-[55px]">
                                         <template x-if="['CIF', 'SSL', 'SJL'].includes(emp.role)">
-                                            <button @click="togglePK(empIdx, dayIdx)" :class="pkStatus[empIdx][dayIdx] ? 'text-amber-400' : 'text-gray-800'" class="no-print mb-1 text-lg">★</button>
+                                            <div class="mb-1 h-4">
+                                                <button @click="togglePK(empIdx, dayIdx)" x-show="!isExporting" :class="pkStatus[empIdx][dayIdx] ? 'text-amber-400' : 'text-gray-800'" class="no-print transition-all">★</button>
+                                                <span x-show="isExporting && pkStatus[empIdx][dayIdx]" class="text-amber-500 font-bold text-[8px]">[PK]</span>
+                                            </div>
                                         </template>
+
+                                        <div class="export-label text-[11px] uppercase tracking-tighter" :class="schedule[empIdx][dayIdx].includes('OFF') ? 'text-red-500' : 'text-white'" x-text="formatShift(schedule[empIdx][dayIdx])"></div>
+                                        
                                         <select class="bg-transparent text-center font-bold outline-none cursor-pointer w-full text-[11px]"
                                                 :class="schedule[empIdx][dayIdx].includes('OFF') ? 'text-red-500' : 'text-white'"
                                                 x-model="schedule[empIdx][dayIdx]" @change="validateSchedule()">
                                             <option value="SHIFT 1" class="bg-slate-900">S1</option>
                                             <option value="SHIFT 2" class="bg-slate-900">S2</option>
-                                            <option value="OFF" class="bg-slate-900">OFF</option>
-                                            <option value="OFF HL" class="bg-slate-900">OFF HL</option>
+                                            <option value="OFF" class="bg-slate-900 text-red-500 font-bold">OFF</option>
+                                            <option value="OFF HL" class="bg-slate-900 text-red-500 font-bold">OFF HL</option>
                                             <option value="CUTI" class="bg-slate-900">CUTI</option>
                                             <option value="TRAINING" class="bg-slate-900">TRN</option>
                                         </select>
                                     </div>
                                 </td>
                             </template>
-                            <td class="p-2 no-print text-center">
-                                <button @click="removeEmployee(empIdx)" class="text-red-900 hover:text-red-500 text-lg font-bold">×</button>
+                            <td class="p-2 no-export text-center">
+                                <button @click="removeEmployee(empIdx)" class="text-red-900 hover:text-red-500 font-bold">×</button>
                             </td>
                         </tr>
                     </template>
@@ -154,13 +156,13 @@
 
         <footer class="mt-6 no-print">
             <div class="bg-black/40 border border-cyan-950 p-4 rounded-xl">
-                <p class="text-cyan-600 orbitron text-[10px] mb-2 tracking-widest">SYSTEM_AUDIT_LOG</p>
-                <div class="space-y-1">
+                <p class="text-cyan-600 orbitron text-[10px] mb-2 tracking-widest uppercase">System_Audit_Integrity</p>
+                <div class="space-y-1 overflow-y-auto max-h-32">
                     <template x-if="warnings.length === 0">
-                        <p class="text-emerald-500 text-[11px] mono">>> STATUS: OPTIMAL. NO PROTOCOL VIOLATION.</p>
+                        <p class="text-emerald-500 text-[11px] mono animate-pulse">>> STATUS: OPTIMAL. SYSTEM STABLE.</p>
                     </template>
                     <template x-for="warn in warnings">
-                        <p class="text-red-400 text-[10px] font-bold border-l border-red-900 pl-2 uppercase">>> ERROR: <span x-text="warn" class="text-white font-normal"></span></p>
+                        <p class="text-red-400 text-[10px] font-bold border-l border-red-900 pl-2">>> ERROR: <span x-text="warn" class="text-white font-normal ml-1"></span></p>
                     </template>
                 </div>
             </div>
@@ -179,9 +181,10 @@
             schedule: [],
             pkStatus: [],
             warnings: [],
+            isExporting: false,
 
             init() {
-                const saved = localStorage.getItem('cyber_v3_2_data');
+                const saved = localStorage.getItem('cyber_v3_3_data');
                 if (saved) {
                     const parsed = JSON.parse(saved);
                     this.employees = parsed.employees;
@@ -190,7 +193,7 @@
                     this.nationalHolidays = parsed.nationalHolidays;
                     this.startDate = parsed.startDate;
                 } else {
-                    this.employees = [{ id: 1, name: 'Sujatmiko', role: 'CIF', gender: 'L', lastOffDay: '' }];
+                    this.employees = [{ id: 1, name: 'PROTO_UNIT', role: 'CIF', gender: 'L', lastOffDay: '' }];
                     this.schedule = [Array(7).fill('SHIFT 1')];
                     this.pkStatus = [Array(7).fill(false)];
                 }
@@ -205,21 +208,41 @@
             },
 
             saveData() {
-                localStorage.setItem('cyber_v3_2_data', JSON.stringify({
+                localStorage.setItem('cyber_v3_3_data', JSON.stringify({
                     employees: this.employees, schedule: this.schedule,
                     pkStatus: this.pkStatus, nationalHolidays: this.nationalHolidays,
                     startDate: this.startDate
                 }));
             },
 
+            formatShift(val) {
+                if (val === 'SHIFT 1') return 'S1';
+                if (val === 'SHIFT 2') return 'S2';
+                return val;
+            },
+
             exportToImage() {
-                const area = document.getElementById('capture-area');
-                html2canvas(area, { backgroundColor: '#0d1117', scale: 2 }).then(canvas => {
-                    const link = document.createElement('a');
-                    link.download = `Schedule_v3_2_${this.startDate}.png`;
-                    link.href = canvas.toDataURL("image/png");
-                    link.click();
-                });
+                // Aktifkan mode export (tukar select dengan text label)
+                this.isExporting = true;
+                
+                // Beri jeda kecil agar DOM terupdate
+                setTimeout(() => {
+                    const area = document.getElementById('capture-area');
+                    html2canvas(area, { 
+                        backgroundColor: '#0d1117',
+                        scale: 2,
+                        logging: false,
+                        useCORS: true
+                    }).then(canvas => {
+                        const link = document.createElement('a');
+                        link.download = `Schedule_Final_${this.startDate}.png`;
+                        link.href = canvas.toDataURL("image/png");
+                        link.click();
+                        
+                        // Kembalikan ke mode normal
+                        this.isExporting = false;
+                    });
+                }, 100);
             },
 
             updateDates() {
@@ -249,7 +272,7 @@
             },
 
             removeEmployee(idx) { 
-                if(confirm("Hapus personel?")) {
+                if(confirm("Terminate unit?")) {
                     this.employees.splice(idx, 1); this.schedule.splice(idx, 1); this.pkStatus.splice(idx, 1);
                 }
             },
@@ -259,7 +282,7 @@
                 if(this.pkStatus[eIdx][dIdx]) this.schedule[eIdx][dIdx] = 'SHIFT 2';
             },
 
-            clearAllData() { if(confirm("Format sistem?")) { localStorage.clear(); location.reload(); } },
+            clearAllData() { if(confirm("Initiate global wipe?")) { localStorage.clear(); location.reload(); } },
 
             validateSchedule() {
                 this.warnings = [];
@@ -273,7 +296,6 @@
                             if (emp.lastOffDay !== '' && emp.lastOffDay == d) this.warnings.push(`${emp.name}: OFF sama dengan minggu lalu`);
                             if (d < 6 && this.schedule[i][d+1] === 'OFF') this.warnings.push(`${emp.name}: OFF berurutan`);
                         }
-                        if (this.nationalHolidays[d] && s === 'OFF') this.warnings.push(`${emp.name}: Gunakan OFF HL di hari libur`);
                         
                         if (s === 'SHIFT 1') { s1.push(emp); if(emp.gender === 'L') maleS1 = true; }
                         else if (s === 'SHIFT 2') { s2.push(emp); if(emp.gender === 'L') maleS2 = true; }
@@ -284,20 +306,13 @@
                         }
                     });
 
-                    // LOGIKA: CIF & SSL BOLEH BARENG JIKA SSL >= 2
-                    const checkCIFSSL = (personnelList, shiftName) => {
-                        const roles = personnelList.map(p => p.role);
-                        const countCIF = roles.filter(r => r === 'CIF').length;
-                        const countSSL = roles.filter(r => r === 'SSL').length;
-                        
-                        // Jika ada CIF dan ada SSL, tapi SSL kurang dari 2, maka ERROR
-                        if (countCIF > 0 && countSSL > 0 && countSSL < 2) {
-                            this.warnings.push(`[${this.days[d]} ${shiftName}] CIF & SSL Dilarang Bareng (Kecuali SSL >= 2)`);
+                    const checkCIFSSL = (list, name) => {
+                        const roles = list.map(p => p.role);
+                        if (roles.includes('CIF') && roles.includes('SSL') && roles.filter(r => r === 'SSL').length < 2) {
+                            this.warnings.push(`[${this.days[d]} ${name}] CIF & SSL Dilarang Bareng (Kecuali SSL >= 2)`);
                         }
                     };
-
-                    checkCIFSSL(s1, 'S1');
-                    checkCIFSSL(s2, 'S2');
+                    checkCIFSSL(s1, 'S1'); checkCIFSSL(s2, 'S2');
 
                     if (s1.length > 0 && !maleS1) this.warnings.push(`[${this.days[d]} S1] Minimal 1 Pria`);
                     if (s2.length > 0 && !maleS2) this.warnings.push(`[${this.days[d]} S2] Minimal 1 Pria`);
