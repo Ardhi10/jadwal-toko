@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CYBER-SCHEDULE TERMINAL v3.2</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@500&display=swap');
+
+        :root {
+            --neon-cyan: #00f3ff;
+            --dark-bg: #0d1117;
+        }
+
+        body {
+            background-color: var(--dark-bg);
+            color: #e6edf3;
+            font-family: 'Inter', sans-serif;
+            background-image: radial-gradient(circle at 50% 50%, #161b22 0%, #0d1117 100%);
+            min-height: 100vh;
+        }
+
+        .orbitron { font-family: 'Orbitron', sans-serif; }
+        .mono { font-family: 'JetBrains Mono', monospace; }
+
+        .cyber-panel {
+            background: rgba(22, 27, 34, 0.95);
+            border: 1px solid rgba(0, 243, 255, 0.2);
+        }
+
+        .holiday-active { background: rgba(239, 68, 68, 0.15) !important; border-bottom: 2px solid #ef4444 !important; }
+
+        @media print {
+            .no-print { display: none !important; }
+            body { background: white !important; color: black !important; }
+            .cyber-panel { border: 1px solid black; background: white; }
+        }
+    </style>
+</head>
+<body class="p-4 md:p-6" x-data="scheduleApp()">
+
+    <div class="max-w-7xl mx-auto">
+        
+        <header class="flex flex-col lg:flex-row justify-between items-end mb-6 pb-6 border-b border-cyan-900/50 gap-4">
+            <div>
+                <h1 class="orbitron text-2xl font-bold text-cyan-400 tracking-[0.2em] uppercase">
+                    Terminal_Schedule <span class="text-white">v3.2</span>
+                </h1>
+                <div class="flex items-center mt-2 no-print">
+                    <div class="bg-cyan-950/30 border border-cyan-800 px-3 py-1 rounded flex items-center gap-3">
+                        <span class="text-[10px] font-bold text-cyan-500 mono">SYNC_DATE:</span>
+                        <input type="date" x-model="startDate" @change="updateDates()" class="bg-transparent text-sm text-white outline-none cursor-pointer">
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap gap-2 no-print">
+                <button @click="exportToImage()" class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded font-bold text-[11px] orbitron flex items-center gap-2 transition">
+                    EXPORT_PNG
+                </button>
+                <button @click="window.print()" class="bg-cyan-600 hover:bg-cyan-500 text-black px-4 py-2 rounded font-bold text-[11px] orbitron flex items-center gap-2 transition">
+                    PRINT_PDF
+                </button>
+            </div>
+        </header>
+
+        <section class="no-print mb-6 grid grid-cols-1 md:grid-cols-6 gap-3 p-4 bg-slate-900/30 border border-cyan-900/30 rounded-xl">
+            <input type="text" x-model="newEmp.name" placeholder="Nama Karyawan" class="bg-black/50 border border-cyan-900 p-2 rounded text-sm text-white focus:border-cyan-400 outline-none md:col-span-2">
+            <select x-model="newEmp.role" class="bg-black/50 border border-cyan-900 p-2 rounded text-sm text-cyan-400">
+                <option value="CIF">CIF</option><option value="SSL">SSL</option><option value="SJL">SJL</option>
+                <option value="SCB">SCB</option><option value="SCG">SCG</option><option value="BARISTA">BARISTA</option>
+            </select>
+            <select x-model="newEmp.gender" class="bg-black/50 border border-cyan-900 p-2 rounded text-sm text-cyan-400">
+                <option value="L">Pria (M)</option><option value="P">Wanita (F)</option>
+            </select>
+            <button @click="addEmployee" class="bg-cyan-500 hover:bg-cyan-400 text-black font-bold py-2 rounded text-[11px] orbitron">
+                DEPLOY_UNIT
+            </button>
+            <button @click="clearAllData()" class="bg-red-900/20 border border-red-500/50 text-red-500 py-2 rounded text-[11px] orbitron hover:bg-red-500 transition">
+                WIPE_ALL
+            </button>
+        </section>
+
+        <div id="capture-area" class="cyber-panel rounded-xl overflow-hidden border border-cyan-900/50 p-1">
+            <div class="p-4 bg-cyan-950/20 flex justify-between items-center border-b border-cyan-900/50">
+                <span class="text-[10px] font-bold text-cyan-500 orbitron uppercase tracking-[0.3em]">Operational_Data_Log</span>
+                <span class="text-[11px] font-bold text-white mono" x-text="getPeriodRange()"></span>
+            </div>
+            
+            <table class="w-full text-left border-collapse table-fixed">
+                <thead>
+                    <tr class="bg-slate-900/80 text-cyan-400">
+                        <th class="p-4 border-b border-cyan-900 w-48 text-[10px] uppercase font-bold tracking-widest">Personnel_Unit</th>
+                        <template x-for="(day, index) in days" :key="index">
+                            <th class="p-2 border-b border-cyan-900 text-center relative cursor-pointer" @click="toggleHoliday(index)" :class="nationalHolidays[index] ? 'holiday-active' : ''">
+                                <div class="text-[11px] font-bold text-white" x-text="day"></div>
+                                <div class="text-[9px] text-cyan-600 mono" x-text="formattedDates[index]"></div>
+                                <template x-if="nationalHolidays[index]">
+                                    <div class="text-[7px] text-red-500 font-bold mt-1">LIBUR NASIONAL</div>
+                                </template>
+                            </th>
+                        </template>
+                        <th class="p-2 border-b border-cyan-900 w-10 no-print"></th>
+                    </tr>
+                </thead>
+                <tbody class="text-[12px]">
+                    <template x-for="(emp, empIdx) in employees" :key="emp.id">
+                        <tr class="border-b border-cyan-900/20 hover:bg-cyan-900/5">
+                            <td class="p-3 border-r border-cyan-900/20">
+                                <div class="text-white font-bold" x-text="emp.name"></div>
+                                <div class="flex gap-1 mt-1 items-center">
+                                    <span class="text-[8px] font-bold bg-cyan-950 text-cyan-400 px-1 border border-cyan-800 uppercase" x-text="emp.role"></span>
+                                    <span class="text-[8px] text-gray-500 mono" x-text="emp.gender"></span>
+                                </div>
+                                <div class="mt-2 no-print">
+                                    <select x-model="emp.lastOffDay" @change="validateSchedule()" class="bg-black/40 text-[9px] border border-cyan-900/50 rounded px-1 text-orange-400">
+                                        <option value="">Off Lalu: -</option>
+                                        <template x-for="(day, idx) in days" :key="idx">
+                                            <option :value="idx" x-text="day"></option>
+                                        </template>
+                                    </select>
+                                </div>
+                            </td>
+                            <template x-for="(day, dayIdx) in days" :key="dayIdx">
+                                <td class="p-1 border-r border-cyan-900/10 text-center relative" :class="nationalHolidays[dayIdx] ? 'bg-red-500/5' : ''">
+                                    <div class="flex flex-col items-center justify-center min-h-[55px]">
+                                        <template x-if="['CIF', 'SSL', 'SJL'].includes(emp.role)">
+                                            <button @click="togglePK(empIdx, dayIdx)" :class="pkStatus[empIdx][dayIdx] ? 'text-amber-400' : 'text-gray-800'" class="no-print mb-1 text-lg">★</button>
+                                        </template>
+                                        <select class="bg-transparent text-center font-bold outline-none cursor-pointer w-full text-[11px]"
+                                                :class="schedule[empIdx][dayIdx].includes('OFF') ? 'text-red-500' : 'text-white'"
+                                                x-model="schedule[empIdx][dayIdx]" @change="validateSchedule()">
+                                            <option value="SHIFT 1" class="bg-slate-900">S1</option>
+                                            <option value="SHIFT 2" class="bg-slate-900">S2</option>
+                                            <option value="OFF" class="bg-slate-900">OFF</option>
+                                            <option value="OFF HL" class="bg-slate-900">OFF HL</option>
+                                            <option value="CUTI" class="bg-slate-900">CUTI</option>
+                                            <option value="TRAINING" class="bg-slate-900">TRN</option>
+                                        </select>
+                                    </div>
+                                </td>
+                            </template>
+                            <td class="p-2 no-print text-center">
+                                <button @click="removeEmployee(empIdx)" class="text-red-900 hover:text-red-500 text-lg font-bold">×</button>
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+
+        <footer class="mt-6 no-print">
+            <div class="bg-black/40 border border-cyan-950 p-4 rounded-xl">
+                <p class="text-cyan-600 orbitron text-[10px] mb-2 tracking-widest">SYSTEM_AUDIT_LOG</p>
+                <div class="space-y-1">
+                    <template x-if="warnings.length === 0">
+                        <p class="text-emerald-500 text-[11px] mono">>> STATUS: OPTIMAL. NO PROTOCOL VIOLATION.</p>
+                    </template>
+                    <template x-for="warn in warnings">
+                        <p class="text-red-400 text-[10px] font-bold border-l border-red-900 pl-2 uppercase">>> ERROR: <span x-text="warn" class="text-white font-normal"></span></p>
+                    </template>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+    function scheduleApp() {
+        return {
+            days: ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'],
+            startDate: new Date().toISOString().substr(0, 10),
+            formattedDates: [],
+            nationalHolidays: Array(7).fill(false),
+            newEmp: { name: '', role: 'CIF', gender: 'L', lastOffDay: '' },
+            employees: [],
+            schedule: [],
+            pkStatus: [],
+            warnings: [],
+
+            init() {
+                const saved = localStorage.getItem('cyber_v3_2_data');
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    this.employees = parsed.employees;
+                    this.schedule = parsed.schedule;
+                    this.pkStatus = parsed.pkStatus;
+                    this.nationalHolidays = parsed.nationalHolidays;
+                    this.startDate = parsed.startDate;
+                } else {
+                    this.employees = [{ id: 1, name: 'Sujatmiko', role: 'CIF', gender: 'L', lastOffDay: '' }];
+                    this.schedule = [Array(7).fill('SHIFT 1')];
+                    this.pkStatus = [Array(7).fill(false)];
+                }
+                this.updateDates();
+                this.validateSchedule();
+
+                this.$watch('employees', () => this.saveData());
+                this.$watch('schedule', () => { this.saveData(); this.validateSchedule(); });
+                this.$watch('pkStatus', () => this.saveData());
+                this.$watch('nationalHolidays', () => { this.saveData(); this.validateSchedule(); });
+                this.$watch('startDate', () => { this.updateDates(); this.saveData(); });
+            },
+
+            saveData() {
+                localStorage.setItem('cyber_v3_2_data', JSON.stringify({
+                    employees: this.employees, schedule: this.schedule,
+                    pkStatus: this.pkStatus, nationalHolidays: this.nationalHolidays,
+                    startDate: this.startDate
+                }));
+            },
+
+            exportToImage() {
+                const area = document.getElementById('capture-area');
+                html2canvas(area, { backgroundColor: '#0d1117', scale: 2 }).then(canvas => {
+                    const link = document.createElement('a');
+                    link.download = `Schedule_v3_2_${this.startDate}.png`;
+                    link.href = canvas.toDataURL("image/png");
+                    link.click();
+                });
+            },
+
+            updateDates() {
+                this.formattedDates = [];
+                let start = new Date(this.startDate);
+                for (let i = 0; i < 7; i++) {
+                    let curr = new Date(start); curr.setDate(start.getDate() + i);
+                    this.formattedDates.push(curr.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' }));
+                }
+            },
+
+            toggleHoliday(index) {
+                this.nationalHolidays[index] = !this.nationalHolidays[index];
+            },
+
+            getPeriodRange() {
+                let s = new Date(this.startDate); let e = new Date(s); e.setDate(s.getDate() + 6);
+                return `${s.toLocaleDateString('id-ID', {day:'2-digit', month:'short'})} - ${e.toLocaleDateString('id-ID', {day:'2-digit', month:'short', year:'numeric'})}`;
+            },
+
+            addEmployee() {
+                if (!this.newEmp.name) return;
+                this.employees.push({ ...this.newEmp, id: Date.now() });
+                this.schedule.push(Array(7).fill('SHIFT 1'));
+                this.pkStatus.push(Array(7).fill(false));
+                this.newEmp = { name: '', role: 'CIF', gender: 'L', lastOffDay: '' };
+            },
+
+            removeEmployee(idx) { 
+                if(confirm("Hapus personel?")) {
+                    this.employees.splice(idx, 1); this.schedule.splice(idx, 1); this.pkStatus.splice(idx, 1);
+                }
+            },
+
+            togglePK(eIdx, dIdx) {
+                this.pkStatus[eIdx][dIdx] = !this.pkStatus[eIdx][dIdx];
+                if(this.pkStatus[eIdx][dIdx]) this.schedule[eIdx][dIdx] = 'SHIFT 2';
+            },
+
+            clearAllData() { if(confirm("Format sistem?")) { localStorage.clear(); location.reload(); } },
+
+            validateSchedule() {
+                this.warnings = [];
+                for (let d = 0; d < 7; d++) {
+                    let s1 = []; let s2 = [];
+                    let maleS1 = false; let maleS2 = false;
+
+                    this.employees.forEach((emp, i) => {
+                        let s = this.schedule[i][d];
+                        if (s === 'OFF') {
+                            if (emp.lastOffDay !== '' && emp.lastOffDay == d) this.warnings.push(`${emp.name}: OFF sama dengan minggu lalu`);
+                            if (d < 6 && this.schedule[i][d+1] === 'OFF') this.warnings.push(`${emp.name}: OFF berurutan`);
+                        }
+                        if (this.nationalHolidays[d] && s === 'OFF') this.warnings.push(`${emp.name}: Gunakan OFF HL di hari libur`);
+                        
+                        if (s === 'SHIFT 1') { s1.push(emp); if(emp.gender === 'L') maleS1 = true; }
+                        else if (s === 'SHIFT 2') { s2.push(emp); if(emp.gender === 'L') maleS2 = true; }
+
+                        if (this.pkStatus[i][d]) {
+                            if (s !== 'SHIFT 2') this.warnings.push(`${emp.name} PK: Wajib S2`);
+                            if (d < 6 && this.schedule[i][d+1] !== 'SHIFT 1') this.warnings.push(`${emp.name} PK: Besok wajib S1`);
+                        }
+                    });
+
+                    // LOGIKA: CIF & SSL BOLEH BARENG JIKA SSL >= 2
+                    const checkCIFSSL = (personnelList, shiftName) => {
+                        const roles = personnelList.map(p => p.role);
+                        const countCIF = roles.filter(r => r === 'CIF').length;
+                        const countSSL = roles.filter(r => r === 'SSL').length;
+                        
+                        // Jika ada CIF dan ada SSL, tapi SSL kurang dari 2, maka ERROR
+                        if (countCIF > 0 && countSSL > 0 && countSSL < 2) {
+                            this.warnings.push(`[${this.days[d]} ${shiftName}] CIF & SSL Dilarang Bareng (Kecuali SSL >= 2)`);
+                        }
+                    };
+
+                    checkCIFSSL(s1, 'S1');
+                    checkCIFSSL(s2, 'S2');
+
+                    if (s1.length > 0 && !maleS1) this.warnings.push(`[${this.days[d]} S1] Minimal 1 Pria`);
+                    if (s2.length > 0 && !maleS2) this.warnings.push(`[${this.days[d]} S2] Minimal 1 Pria`);
+                }
+            }
+        }
+    }
+    </script>
+</body>
+</html>
